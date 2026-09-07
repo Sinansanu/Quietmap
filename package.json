@@ -1,0 +1,28 @@
+{
+  "name": "quitmap",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A privacy-first personal focus cartographer.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "desktop": "npm run build && electron .",
+    "start": "electron .",
+    "test": "node --test tests/core.test.cjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "electron": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "sql.js": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest"
+  }
+}
