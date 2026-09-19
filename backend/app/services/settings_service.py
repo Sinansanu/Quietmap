@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, timedelta
-from typing import Dict
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete
 from app.models.setting import Setting
