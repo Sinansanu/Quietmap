@@ -311,6 +311,13 @@ Phase 1 implements complete, secure user authentication for QMap while maintaini
 6. **Known Issues:**
    - None. All 30 tests pass cleanly, database migrations are at head, build is green, and multi-user isolation is enforced at repository level.
 
+7. **Post-Phase 1 Deployment Startup Resolution:**
+   - **Observed Issue:** Vercel runtime logged `Application startup failed. Exiting.` and returned HTTP 500 on all endpoints.
+   - **Root Cause:** When `ENVIRONMENT=production` was active on Vercel, `settings.validate_production_secret()` executed during FastAPI's lifespan. Because `SECRET_KEY` had not yet been configured in the Vercel Project Environment Variables, `Settings.SECRET_KEY` retained its insecure default placeholder containing `"replace-in-production"`, raising `RuntimeError` during startup to prevent insecure deployment.
+   - **Resolution:**
+     - Configured `SECRET_KEY` as a required Vercel environment variable for **Production** and **Preview** environments (min 32 characters).
+     - Hardened `backend/app/config.py` with defensive field validators for `SECRET_KEY` (whitespace/quote stripping), `DATABASE_URL` protocol normalization (`postgresql+psycopg://`), and case-insensitive `ENVIRONMENT.lower()` checks.
+
 ---
 
 # Phase 2 — User Profiles

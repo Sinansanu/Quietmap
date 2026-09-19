@@ -41,6 +41,24 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     ALGORITHM: str = "HS256"
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_database_url(cls, v: str) -> str:
+        if isinstance(v, str):
+            v = v.strip().strip("'\"")
+            if v.startswith("postgres://"):
+                v = "postgresql+psycopg://" + v[len("postgres://"):]
+            elif v.startswith("postgresql://") and not v.startswith("postgresql+"):
+                v = "postgresql+psycopg://" + v[len("postgresql://"):]
+        return v
+
+    @field_validator("SECRET_KEY", mode="before")
+    @classmethod
+    def clean_secret_key(cls, v: str) -> str:
+        if isinstance(v, str):
+            return v.strip().strip("'\"")
+        return v
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -51,7 +69,7 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     def validate_production_secret(self) -> None:
-        if self.ENVIRONMENT == "production":
+        if self.ENVIRONMENT.lower() == "production":
             if not self.SECRET_KEY or len(self.SECRET_KEY) < 32 or "replace-in-production" in self.SECRET_KEY:
                 raise RuntimeError("In production, SECRET_KEY must be set to a secure key with at least 32 characters.")
 
