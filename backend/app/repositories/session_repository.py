@@ -1,23 +1,33 @@
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
 from app.models.focus_session import FocusSession
 
 
 class SessionRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[str] = None):
         self.db = db
+        self.user_id = user_id
 
     def get_active(self) -> Optional[FocusSession]:
-        stmt = select(FocusSession).where(FocusSession.ended_at.is_(None)).order_by(FocusSession.started_at.desc())
+        stmt = select(FocusSession).where(FocusSession.ended_at.is_(None))
+        if self.user_id:
+            stmt = stmt.where(FocusSession.user_id == self.user_id)
+        stmt = stmt.order_by(FocusSession.started_at.desc())
         return self.db.scalars(stmt).first()
 
     def get_by_id(self, session_id: str) -> Optional[FocusSession]:
-        return self.db.get(FocusSession, session_id)
+        if not self.user_id:
+            return self.db.get(FocusSession, session_id)
+        stmt = select(FocusSession).where(
+            and_(FocusSession.id == session_id, FocusSession.user_id == self.user_id)
+        )
+        return self.db.scalars(stmt).first()
 
     def create(self, location_id: Optional[str], activity: Optional[str], started_at: Optional[datetime] = None) -> FocusSession:
         session = FocusSession(
+            user_id=self.user_id,
             location_id=location_id,
             activity=activity,
             started_at=started_at or datetime.now(timezone.utc)
@@ -62,10 +72,8 @@ class SessionRepository:
         return len(stale_sessions)
 
     def list_history(self, limit: int = 50) -> List[FocusSession]:
-        stmt = (
-            select(FocusSession)
-            .where(FocusSession.ended_at.is_not(None))
-            .order_by(FocusSession.ended_at.desc())
-            .limit(limit)
-        )
+        stmt = select(FocusSession).where(FocusSession.ended_at.is_not(None))
+        if self.user_id:
+            stmt = stmt.where(FocusSession.user_id == self.user_id)
+        stmt = stmt.order_by(FocusSession.ended_at.desc()).limit(limit)
         return list(self.db.scalars(stmt).all())

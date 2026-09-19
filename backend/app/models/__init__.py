@@ -1,3 +1,4 @@
+from .user import User
 from .location import Location
 from .focus_session import FocusSession
 from .noise_sample import NoiseSample
@@ -6,6 +7,7 @@ from .daily_statistic import DailyStatistic
 from .setting import Setting
 
 __all__ = [
+    "User",
     "Location",
     "FocusSession",
     "NoiseSample",
@@ -13,3 +15,4 @@ __all__ = [
     "DailyStatistic",
     "Setting",
 ]
+

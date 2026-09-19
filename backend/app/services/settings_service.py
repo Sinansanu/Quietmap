@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, and_
 from app.models.setting import Setting
 from app.models.location import Location
 from app.models.focus_session import FocusSession
@@ -9,7 +9,7 @@ from app.models.noise_sample import NoiseSample
 from app.models.interruption import Interruption
 from app.models.daily_statistic import DailyStatistic
 from app.schemas.setting import SettingsResponse, SettingsUpdate
-from app.core.math import clamp, calculate_focus_score, calculate_stability
+from app.core.math import clamp
 
 
 DEFAULT_SETTINGS: Dict[str, str] = {
@@ -21,47 +21,65 @@ DEFAULT_SETTINGS: Dict[str, str] = {
 
 
 class SettingsService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[str] = None):
         self.db = db
+        self.user_id = user_id
 
     def get_settings(self) -> SettingsResponse:
-        current = {s.key: s.value for s in self.db.scalars(select(Setting)).all()}
+        stmt = select(Setting)
+        if self.user_id:
+            stmt = stmt.where(Setting.user_id == self.user_id)
+        current = {s.key: s.value for s in self.db.scalars(stmt).all()}
+
         for k, v in DEFAULT_SETTINGS.items():
             if k not in current:
-                setting = Setting(key=k, value=v)
+                setting = Setting(user_id=self.user_id, key=k, value=v)
                 self.db.add(setting)
                 current[k] = v
         self.db.commit()
 
         return SettingsResponse(
-            ambient_monitoring=(current["ambient_monitoring"].lower() == "true"),
-            sampling_interval=int(current["sampling_interval"]),
-            interruption_threshold=int(current["interruption_threshold"]),
-            default_activity=current["default_activity"]
+            ambient_monitoring=(current.get("ambient_monitoring", "true").lower() == "true"),
+            sampling_interval=int(current.get("sampling_interval", "10")),
+            interruption_threshold=int(current.get("interruption_threshold", "18")),
+            default_activity=current.get("default_activity", "Work")
         )
 
     def update_settings(self, patch: SettingsUpdate) -> SettingsResponse:
         updates = patch.model_dump(exclude_unset=True)
         for key, val in updates.items():
-            db_setting = self.db.get(Setting, key)
+            stmt = select(Setting).where(Setting.key == key)
+            if self.user_id:
+                stmt = stmt.where(Setting.user_id == self.user_id)
+            db_setting = self.db.scalars(stmt).first()
+
             val_str = str(val).lower() if isinstance(val, bool) else str(val)
             if db_setting:
                 db_setting.value = val_str
             else:
-                self.db.add(Setting(key=key, value=val_str))
+                self.db.add(Setting(user_id=self.user_id, key=key, value=val_str))
         self.db.commit()
         return self.get_settings()
 
     def delete_all_data(self) -> Dict[str, bool]:
-        self.db.execute(delete(Interruption))
-        self.db.execute(delete(NoiseSample))
-        self.db.execute(delete(FocusSession))
-        self.db.execute(delete(DailyStatistic))
-        self.db.execute(delete(Location))
-        self.db.execute(delete(Setting))
+        if self.user_id:
+            # Delete user's sessions (cascades to interruptions)
+            sess_ids = select(FocusSession.id).where(FocusSession.user_id == self.user_id)
+            self.db.execute(delete(Interruption).where(Interruption.focus_session_id.in_(sess_ids)))
+            self.db.execute(delete(NoiseSample).where(NoiseSample.user_id == self.user_id))
+            self.db.execute(delete(FocusSession).where(FocusSession.user_id == self.user_id))
+            self.db.execute(delete(Location).where(Location.user_id == self.user_id))
+            self.db.execute(delete(Setting).where(Setting.user_id == self.user_id))
+        else:
+            self.db.execute(delete(Interruption))
+            self.db.execute(delete(NoiseSample))
+            self.db.execute(delete(FocusSession))
+            self.db.execute(delete(DailyStatistic))
+            self.db.execute(delete(Location))
+            self.db.execute(delete(Setting))
 
         for k, v in DEFAULT_SETTINGS.items():
-            self.db.add(Setting(key=k, value=v))
+            self.db.add(Setting(user_id=self.user_id, key=k, value=v))
         self.db.commit()
         return {"deleted": True}
 
@@ -69,11 +87,11 @@ class SettingsService:
         day_count = days if days in (7, 14, 30) else 7
         self.delete_all_data()
 
-        # 1. Create standard locations
+        # 1. Create standard locations for this user
         location_names = ["Desk", "Library", "Home"]
         locations = []
         for name in location_names:
-            loc = Location(name=name)
+            loc = Location(name=name, user_id=self.user_id)
             self.db.add(loc)
             locations.append(loc)
         self.db.commit()
@@ -100,6 +118,7 @@ class SettingsService:
                 noise_lvl = round(clamp(base_level + variation, 8.0, 92.0), 1)
 
                 sample = NoiseSample(
+                    user_id=self.user_id,
                     recorded_at=sample_time,
                     noise_level=noise_lvl,
                     location_id=loc.id
@@ -114,6 +133,7 @@ class SettingsService:
             act = activities[day_offset % len(activities)]
 
             focus_sess = FocusSession(
+                user_id=self.user_id,
                 started_at=sess_start,
                 ended_at=sess_end,
                 location_id=loc.id,

@@ -1,37 +1,42 @@
 import uuid
-from typing import List, Optional, TYPE_CHECKING
-from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint
+from typing import Optional, List, TYPE_CHECKING
+from sqlalchemy import String, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from .user import User
+    from .location import Location
     from .focus_session import FocusSession
     from .noise_sample import NoiseSample
 
 
-class Location(Base):
-    __tablename__ = "locations"
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_locations_user_name"),
-    )
+class User(Base):
+    __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
         String(36),
         primary_key=True,
         default=lambda: str(uuid.uuid4())
     )
-    user_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True
-    )
-    name: Mapped[str] = mapped_column(
-        String(64),
+    email: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
         nullable=False,
         index=True
+    )
+    hashed_password: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+    full_name: Mapped[Optional[str]] = mapped_column(
+        String(128),
+        nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -39,17 +44,18 @@ class Location(Base):
         nullable=False
     )
 
-    user: Mapped[Optional["User"]] = relationship(
-        "User",
-        back_populates="locations"
+    locations: Mapped[List["Location"]] = relationship(
+        "Location",
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
     focus_sessions: Mapped[List["FocusSession"]] = relationship(
         "FocusSession",
-        back_populates="location",
+        back_populates="user",
         cascade="all, delete-orphan"
     )
     noise_samples: Mapped[List["NoiseSample"]] = relationship(
         "NoiseSample",
-        back_populates="location"
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
-

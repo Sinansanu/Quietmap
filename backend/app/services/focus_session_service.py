@@ -13,11 +13,12 @@ from app.services.noise_monitoring_service import NoiseMonitoringService
 
 
 class FocusSessionService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[str] = None):
         self.db = db
-        self.session_repo = SessionRepository(db)
-        self.location_repo = LocationRepository(db)
-        self.noise_repo = NoiseRepository(db)
+        self.user_id = user_id
+        self.session_repo = SessionRepository(db, user_id=user_id)
+        self.location_repo = LocationRepository(db, user_id=user_id)
+        self.noise_repo = NoiseRepository(db, user_id=user_id)
 
     def get_active(self) -> Optional[FocusSessionResponse]:
         active = self.session_repo.get_active()
@@ -38,7 +39,7 @@ class FocusSessionService:
             if not loc:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Location with ID {payload.location_id} does not exist."
+                    detail=f"Location with ID {payload.location_id} does not exist in your workspace."
                 )
 
         activity = (payload.activity or "Work").strip()[:64]

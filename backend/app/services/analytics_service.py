@@ -20,12 +20,13 @@ from app.core.math import relative_noise_label
 
 
 class AnalyticsService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[str] = None):
         self.db = db
-        self.analytics_repo = AnalyticsRepository(db)
-        self.noise_repo = NoiseRepository(db)
-        self.session_repo = SessionRepository(db)
-        self.location_repo = LocationRepository(db)
+        self.user_id = user_id
+        self.analytics_repo = AnalyticsRepository(db, user_id=user_id)
+        self.noise_repo = NoiseRepository(db, user_id=user_id)
+        self.session_repo = SessionRepository(db, user_id=user_id)
+        self.location_repo = LocationRepository(db, user_id=user_id)
 
     def get_dashboard(self) -> DashboardResponse:
         now = datetime.now(timezone.utc)
@@ -45,27 +46,47 @@ class AnalyticsService:
         active_sess = self.session_repo.get_active()
 
         # 3. Aggregates for today
+        completed_conds = [
+            FocusSession.started_at >= today_start,
+            FocusSession.ended_at.is_not(None)
+        ]
+        if self.user_id:
+            completed_conds.append(FocusSession.user_id == self.user_id)
+
         completed_today = self.db.scalar(
-            select(func.count(FocusSession.id)).where(
-                and_(FocusSession.started_at >= today_start, FocusSession.ended_at.is_not(None))
-            )
+            select(func.count(FocusSession.id)).where(and_(*completed_conds))
         ) or 0
 
-        interruptions_today = self.db.scalar(
-            select(func.count(Interruption.id)).where(Interruption.started_at >= today_start)
-        ) or 0
+        interruptions_stmt = (
+            select(func.count(Interruption.id))
+            .join(FocusSession, Interruption.focus_session_id == FocusSession.id)
+            .where(Interruption.started_at >= today_start)
+        )
+        if self.user_id:
+            interruptions_stmt = interruptions_stmt.where(FocusSession.user_id == self.user_id)
+
+        interruptions_today = self.db.scalar(interruptions_stmt) or 0
+
+        avg_score_conds = [
+            FocusSession.started_at >= today_start,
+            FocusSession.focus_score.is_not(None)
+        ]
+        if self.user_id:
+            avg_score_conds.append(FocusSession.user_id == self.user_id)
 
         avg_score_val = self.db.scalar(
-            select(func.avg(FocusSession.focus_score)).where(
-                and_(FocusSession.started_at >= today_start, FocusSession.focus_score.is_not(None))
-            )
+            select(func.avg(FocusSession.focus_score)).where(and_(*avg_score_conds))
         )
         avg_score = int(round(avg_score_val)) if avg_score_val is not None else None
 
         # 4. Locations & Settings
         locations = [LocationResponse.model_validate(loc) for loc in self.location_repo.get_all()]
 
-        settings_dict = {s.key: s.value for s in self.db.scalars(select(Setting)).all()}
+        settings_stmt = select(Setting)
+        if self.user_id:
+            settings_stmt = settings_stmt.where(Setting.user_id == self.user_id)
+        settings_dict = {s.key: s.value for s in self.db.scalars(settings_stmt).all()}
+
         settings_res = SettingsResponse(
             ambient_monitoring=(settings_dict.get("ambient_monitoring", "true").lower() == "true"),
             sampling_interval=int(settings_dict.get("sampling_interval", "10")),

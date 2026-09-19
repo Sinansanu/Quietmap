@@ -7,8 +7,9 @@ from app.schemas.timeline import TimelineBucket
 
 
 class NoiseRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[str] = None):
         self.db = db
+        self.user_id = user_id
 
     def insert(
         self,
@@ -19,6 +20,7 @@ class NoiseRepository:
     ) -> NoiseSample:
         dt = recorded_at if recorded_at.tzinfo else recorded_at.replace(tzinfo=timezone.utc)
         sample = NoiseSample(
+            user_id=self.user_id,
             recorded_at=dt,
             noise_level=round(noise_level, 1),
             location_id=location_id,
@@ -30,15 +32,17 @@ class NoiseRepository:
         return sample
 
     def get_latest(self) -> Optional[NoiseSample]:
-        stmt = select(NoiseSample).order_by(NoiseSample.recorded_at.desc()).limit(1)
+        stmt = select(NoiseSample)
+        if self.user_id:
+            stmt = stmt.where(NoiseSample.user_id == self.user_id)
+        stmt = stmt.order_by(NoiseSample.recorded_at.desc()).limit(1)
         return self.db.scalars(stmt).first()
 
     def get_samples_for_session(self, session_id: str) -> List[NoiseSample]:
-        stmt = (
-            select(NoiseSample)
-            .where(NoiseSample.focus_session_id == session_id)
-            .order_by(NoiseSample.recorded_at.asc())
-        )
+        stmt = select(NoiseSample).where(NoiseSample.focus_session_id == session_id)
+        if self.user_id:
+            stmt = stmt.where(NoiseSample.user_id == self.user_id)
+        stmt = stmt.order_by(NoiseSample.recorded_at.asc())
         return list(self.db.scalars(stmt).all())
 
     def get_bucketed_timeline(
@@ -47,6 +51,13 @@ class NoiseRepository:
         end_time: datetime,
         bucket_seconds: int = 300
     ) -> List[TimelineBucket]:
+        conditions = [
+            NoiseSample.recorded_at >= start_time,
+            NoiseSample.recorded_at <= end_time
+        ]
+        if self.user_id:
+            conditions.append(NoiseSample.user_id == self.user_id)
+
         stmt = (
             select(
                 NoiseSample.recorded_at,
@@ -54,12 +65,7 @@ class NoiseRepository:
                 NoiseSample.location_id,
                 NoiseSample.focus_session_id
             )
-            .where(
-                and_(
-                    NoiseSample.recorded_at >= start_time,
-                    NoiseSample.recorded_at <= end_time
-                )
-            )
+            .where(and_(*conditions))
             .order_by(NoiseSample.recorded_at.asc())
         )
         raw_samples = self.db.execute(stmt).all()

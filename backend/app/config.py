@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     DEFAULT_INTERRUPTION_THRESHOLD: int = 18
     DEFAULT_ACTIVITY: str = "Work"
 
+    SECRET_KEY: str = "quietmap-dev-insecure-secret-key-replace-in-production-min-32-chars"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
+    ALGORITHM: str = "HS256"
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -45,6 +49,11 @@ class Settings(BaseSettings):
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)
+
+    def validate_production_secret(self) -> None:
+        if self.ENVIRONMENT == "production":
+            if not self.SECRET_KEY or len(self.SECRET_KEY) < 32 or "replace-in-production" in self.SECRET_KEY:
+                raise RuntimeError("In production, SECRET_KEY must be set to a secure key with at least 32 characters.")
 
 
 settings = Settings()

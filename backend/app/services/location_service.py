@@ -6,8 +6,8 @@ from app.schemas.location import LocationCreate, LocationUpdate, LocationRespons
 
 
 class LocationService:
-    def __init__(self, db: Session):
-        self.repo = LocationRepository(db)
+    def __init__(self, db: Session, user_id: Optional[str] = None):
+        self.repo = LocationRepository(db, user_id=user_id)
 
     def list_locations(self) -> List[LocationResponse]:
         locations = self.repo.get_all()
@@ -33,7 +33,7 @@ class LocationService:
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"A location named '{clean_name}' already exists."
+                detail=f"A location named '{clean_name}' already exists in your workspace."
             )
         location = self.repo.create(clean_name)
         return LocationResponse.model_validate(location)
@@ -49,7 +49,7 @@ class LocationService:
         if existing and existing.id != location_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Another location named '{clean_name}' already exists."
+                detail=f"Another location named '{clean_name}' already exists in your workspace."
             )
         updated = self.repo.update(location_id, clean_name)
         if not updated:

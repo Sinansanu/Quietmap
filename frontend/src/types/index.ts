@@ -152,3 +152,15 @@ export interface WeeklyData {
   longest_session_minutes: number;
   total_focus_minutes: number;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  full_name?: string | null;
+  created_at: string;
+}
+
+export interface AuthSuccessResponse {
+  status: string;
+  user: User;
+}

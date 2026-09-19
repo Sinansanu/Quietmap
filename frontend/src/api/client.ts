@@ -1,4 +1,5 @@
 import type {
+  AuthSuccessResponse,
   DashboardData,
   FocusSession,
   FocusSessionEndResponse,
@@ -13,6 +14,7 @@ import type {
   SettingsUpdate,
   TimelineRange,
   TimelineResponse,
+  User,
   WeeklyData,
 } from '../types';
 
@@ -21,7 +23,7 @@ const API_BASE = rawApiUrl
   ? (rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`)
   : '/api/v1';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
     this.name = 'ApiError';
@@ -37,10 +39,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
 
   try {
-    const res = await fetch(url, { ...options, headers });
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: options.credentials || 'same-origin',
+    });
+
     if (res.status === 204) {
       return {} as T;
     }
+
     if (!res.ok) {
       let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
       try {
@@ -59,6 +67,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  auth: {
+    register: (payload: { email: string; password: string; full_name?: string }) =>
+      request<AuthSuccessResponse>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+    login: (payload: { email: string; password: string }) =>
+      request<AuthSuccessResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
+    me: () =>
+      request<User>('/auth/me'),
+    logout: () =>
+      request<{ status: string; message: string }>('/auth/logout', { method: 'POST' }),
+  },
   locations: {
     list: () => request<Location[]>('/locations'),
     create: (payload: LocationCreate) => request<Location>('/locations', { method: 'POST', body: JSON.stringify(payload) }),

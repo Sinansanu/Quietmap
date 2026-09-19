@@ -14,13 +14,25 @@ from app.core.math import format_hour_window
 
 
 class AnalyticsRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[str] = None):
         self.db = db
+        self.user_id = user_id
 
     def get_focus_map_metrics(self) -> List[LocationMapMetrics]:
-        locations = self.db.scalars(select(Location).order_by(Location.created_at.asc())).all()
+        loc_stmt = select(Location)
+        if self.user_id:
+            loc_stmt = loc_stmt.where(Location.user_id == self.user_id)
+        loc_stmt = loc_stmt.order_by(Location.created_at.asc())
+        locations = self.db.scalars(loc_stmt).all()
         if not locations:
             return []
+
+        session_conditions = [
+            FocusSession.ended_at.is_not(None),
+            FocusSession.location_id.is_not(None)
+        ]
+        if self.user_id:
+            session_conditions.append(FocusSession.user_id == self.user_id)
 
         session_stmt = (
             select(
@@ -28,12 +40,7 @@ class AnalyticsRepository:
                 func.count(FocusSession.id).label("session_count"),
                 func.avg(FocusSession.focus_score).label("avg_score")
             )
-            .where(
-                and_(
-                    FocusSession.ended_at.is_not(None),
-                    FocusSession.location_id.is_not(None)
-                )
-            )
+            .where(and_(*session_conditions))
             .group_by(FocusSession.location_id)
         )
         session_data = {
@@ -41,13 +48,17 @@ class AnalyticsRepository:
             for row in self.db.execute(session_stmt).all()
         }
 
+        noise_conditions = [NoiseSample.location_id.is_not(None)]
+        if self.user_id:
+            noise_conditions.append(NoiseSample.user_id == self.user_id)
+
         noise_stmt = (
             select(
                 NoiseSample.location_id,
                 func.avg(NoiseSample.noise_level).label("avg_noise"),
                 func.count(NoiseSample.id).label("sample_count")
             )
-            .where(NoiseSample.location_id.is_not(None))
+            .where(and_(*noise_conditions))
             .group_by(NoiseSample.location_id)
         )
         noise_data = {
@@ -55,13 +66,17 @@ class AnalyticsRepository:
             for row in self.db.execute(noise_stmt).all()
         }
 
+        interruption_conditions = [FocusSession.location_id.is_not(None)]
+        if self.user_id:
+            interruption_conditions.append(FocusSession.user_id == self.user_id)
+
         interruption_stmt = (
             select(
                 FocusSession.location_id,
                 func.count(Interruption.id).label("interruption_count")
             )
             .join(FocusSession, Interruption.focus_session_id == FocusSession.id)
-            .where(FocusSession.location_id.is_not(None))
+            .where(and_(*interruption_conditions))
             .group_by(FocusSession.location_id)
         )
         interruption_data = {
@@ -71,9 +86,11 @@ class AnalyticsRepository:
 
         best_times: Dict[str, str] = {}
         for loc in locations:
+            sample_conds = [NoiseSample.location_id == loc.id]
+            if self.user_id:
+                sample_conds.append(NoiseSample.user_id == self.user_id)
             samples = self.db.scalars(
-                select(NoiseSample)
-                .where(NoiseSample.location_id == loc.id)
+                select(NoiseSample).where(and_(*sample_conds))
             ).all()
             if samples:
                 hour_buckets: Dict[int, List[float]] = {}
@@ -109,10 +126,15 @@ class AnalyticsRepository:
         return results
 
     def get_insights(self) -> InsightsResponse:
-        total_samples = self.db.scalar(select(func.count(NoiseSample.id))) or 0
-        total_sessions = self.db.scalar(
-            select(func.count(FocusSession.id)).where(FocusSession.ended_at.is_not(None))
-        ) or 0
+        sample_conds = []
+        if self.user_id:
+            sample_conds.append(NoiseSample.user_id == self.user_id)
+        total_samples = self.db.scalar(select(func.count(NoiseSample.id)).where(and_(*sample_conds))) if sample_conds else (self.db.scalar(select(func.count(NoiseSample.id))) or 0)
+
+        session_conds = [FocusSession.ended_at.is_not(None)]
+        if self.user_id:
+            session_conds.append(FocusSession.user_id == self.user_id)
+        total_sessions = self.db.scalar(select(func.count(FocusSession.id)).where(and_(*session_conds))) or 0
 
         if total_samples < 15 or total_sessions < 2:
             return InsightsResponse(
@@ -122,7 +144,11 @@ class AnalyticsRepository:
                 reason="QuietMap requires at least 15 noise measurements and 2 completed focus sessions to detect local patterns."
             )
 
-        samples = self.db.scalars(select(NoiseSample)).all()
+        samples_stmt = select(NoiseSample)
+        if self.user_id:
+            samples_stmt = samples_stmt.where(NoiseSample.user_id == self.user_id)
+        samples = self.db.scalars(samples_stmt).all()
+
         hour_map: Dict[int, List[float]] = {}
         for s in samples:
             dt = s.recorded_at if s.recorded_at.tzinfo else s.recorded_at.replace(tzinfo=timezone.utc)
@@ -158,6 +184,11 @@ class AnalyticsRepository:
                         variance=var_val
                     )
 
+        best_loc_conds = [FocusSession.focus_score.is_not(None)]
+        if self.user_id:
+            best_loc_conds.append(FocusSession.user_id == self.user_id)
+            best_loc_conds.append(Location.user_id == self.user_id)
+
         best_loc_stmt = (
             select(
                 Location.id,
@@ -166,7 +197,7 @@ class AnalyticsRepository:
                 func.count(FocusSession.id).label("session_count")
             )
             .join(FocusSession, FocusSession.location_id == Location.id)
-            .where(FocusSession.focus_score.is_not(None))
+            .where(and_(*best_loc_conds))
             .group_by(Location.id, Location.name)
             .order_by(desc("avg_score"), desc("session_count"))
             .limit(1)
@@ -207,8 +238,12 @@ class AnalyticsRepository:
             }
 
         start_dt = datetime(start_date.year, start_date.month, start_date.day, tzinfo=timezone.utc)
+        sample_conds = [NoiseSample.recorded_at >= start_dt]
+        if self.user_id:
+            sample_conds.append(NoiseSample.user_id == self.user_id)
+
         samples = self.db.scalars(
-            select(NoiseSample).where(NoiseSample.recorded_at >= start_dt)
+            select(NoiseSample).where(and_(*sample_conds))
         ).all()
         for s in samples:
             dt = s.recorded_at if s.recorded_at.tzinfo else s.recorded_at.replace(tzinfo=timezone.utc)
@@ -216,10 +251,15 @@ class AnalyticsRepository:
             if d in day_metrics:
                 day_metrics[d]["noise_levels"].append(s.noise_level)
 
+        sess_conds = [
+            FocusSession.started_at >= start_dt,
+            FocusSession.ended_at.is_not(None)
+        ]
+        if self.user_id:
+            sess_conds.append(FocusSession.user_id == self.user_id)
+
         sessions = self.db.scalars(
-            select(FocusSession).where(
-                and_(FocusSession.started_at >= start_dt, FocusSession.ended_at.is_not(None))
-            )
+            select(FocusSession).where(and_(*sess_conds))
         ).all()
 
         total_interruptions = 0

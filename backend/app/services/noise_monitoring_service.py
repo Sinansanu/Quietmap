@@ -13,11 +13,12 @@ class NoiseMonitoringService:
     # In-memory tracking for active focus sessions to detect spikes accurately across ticks
     _session_trackers: Dict[str, Dict[str, Any]] = {}
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[str] = None):
         self.db = db
-        self.noise_repo = NoiseRepository(db)
-        self.location_repo = LocationRepository(db)
-        self.session_repo = SessionRepository(db)
+        self.user_id = user_id
+        self.noise_repo = NoiseRepository(db, user_id=user_id)
+        self.location_repo = LocationRepository(db, user_id=user_id)
+        self.session_repo = SessionRepository(db, user_id=user_id)
 
     def record_sample(
         self,

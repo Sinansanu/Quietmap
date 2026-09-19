@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from .user import User
     from .location import Location
     from .focus_session import FocusSession
 
@@ -19,6 +20,7 @@ class NoiseSample(Base):
         ),
         Index("ix_noise_samples_location_time", "location_id", "recorded_at"),
         Index("ix_noise_samples_session_time", "focus_session_id", "recorded_at"),
+        Index("ix_noise_samples_user_time", "user_id", "recorded_at"),
     )
 
     id: Mapped[str] = mapped_column(
@@ -36,6 +38,12 @@ class NoiseSample(Base):
         Float,
         nullable=False
     )
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True
+    )
     location_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("locations.id", ondelete="SET NULL"),
@@ -49,6 +57,10 @@ class NoiseSample(Base):
         index=True
     )
 
+    user: Mapped[Optional["User"]] = relationship(
+        "User",
+        back_populates="noise_samples"
+    )
     location: Mapped[Optional["Location"]] = relationship(
         "Location",
         back_populates="noise_samples"

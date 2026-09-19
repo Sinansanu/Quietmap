@@ -14,6 +14,9 @@ from app.api.v1.router import api_v1_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validate production secret
+    settings.validate_production_secret()
+
     # 1. Startup: Attempt database table creation and stale session cleanup
     try:
         Base.metadata.create_all(bind=engine)

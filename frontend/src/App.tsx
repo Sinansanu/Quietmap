@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Compass } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
 import { FocusMapPage } from './pages/FocusMapPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { InsightsPage } from './pages/InsightsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AuthPage } from './components/auth/AuthPage';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { ToastContainer, type ToastMessage } from './components/ui/Toast';
 import { useAudioMonitor } from './hooks/useAudioMonitor';
-import { api } from './api/client';
+import { api, ApiError } from './api/client';
 import type {
   DashboardData,
   FocusSession,
@@ -20,10 +22,13 @@ import type {
   SettingsUpdate,
   TimelineRange,
   TimelineResponse,
+  User,
   WeeklyData,
 } from './types';
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('quietmap.onboarded') === 'true');
   const [activePage, setActivePage] = useState<Page>('dashboard');
 
@@ -62,6 +67,44 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const handleApiError = useCallback(
+    (err: unknown, fallbackMessage: string) => {
+      if (err instanceof ApiError && err.status === 401) {
+        setUser(null);
+        addToast('Session expired. Please sign in again.', 'info');
+        return;
+      }
+      addToast(err instanceof Error ? err.message : fallbackMessage, 'error');
+    },
+    [addToast]
+  );
+
+  // Initial Auth Check
+  useEffect(() => {
+    let isMounted = true;
+    api.auth
+      .me()
+      .then((currentUser) => {
+        if (isMounted) {
+          setUser(currentUser);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setAuthLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Compute active session elapsed time
   const activeSeconds = useMemo(() => {
     if (!activeSession) return 0;
@@ -86,27 +129,27 @@ export default function App() {
       setSettings(data.settings);
       setSelectedLocationId((prev) => prev || (data.locations[0]?.id ?? null));
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Could not load dashboard.', 'error');
+      handleApiError(err, 'Could not load dashboard.');
     }
-  }, [addToast]);
+  }, [handleApiError]);
 
   const loadFocusMap = useCallback(async () => {
     try {
       const data = await api.focusMap.get();
       setFocusMap(data);
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Could not load Focus Map.', 'error');
+      handleApiError(err, 'Could not load Focus Map.');
     }
-  }, [addToast]);
+  }, [handleApiError]);
 
   const loadTimeline = useCallback(async () => {
     try {
       const data = await api.timeline.get(timelineRange);
       setTimelineData(data);
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Could not load timeline.', 'error');
+      handleApiError(err, 'Could not load timeline.');
     }
-  }, [timelineRange, addToast]);
+  }, [timelineRange, handleApiError]);
 
   const loadInsights = useCallback(async () => {
     try {
@@ -114,35 +157,35 @@ export default function App() {
       setInsights(ins);
       setWeekly(wk);
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Could not load insights.', 'error');
+      handleApiError(err, 'Could not load insights.');
     }
-  }, [addToast]);
+  }, [handleApiError]);
 
   const loadSettings = useCallback(async () => {
     try {
       const s = await api.settings.get();
       setSettings(s);
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Could not load settings.', 'error');
+      handleApiError(err, 'Could not load settings.');
     }
-  }, [addToast]);
+  }, [handleApiError]);
 
   // Fetch initial dashboard and settings
   useEffect(() => {
-    if (onboarded) {
+    if (user && onboarded) {
       void loadDashboard();
     }
-  }, [onboarded, loadDashboard]);
+  }, [user, onboarded, loadDashboard]);
 
   // Selective page transitions
   useEffect(() => {
-    if (!onboarded) return;
+    if (!user || !onboarded) return;
     if (activePage === 'dashboard') void loadDashboard();
     else if (activePage === 'map') void loadFocusMap();
     else if (activePage === 'timeline') void loadTimeline();
     else if (activePage === 'insights') void loadInsights();
     else if (activePage === 'settings') void loadSettings();
-  }, [activePage, onboarded, loadDashboard, loadFocusMap, loadTimeline, loadInsights, loadSettings]);
+  }, [activePage, user, onboarded, loadDashboard, loadFocusMap, loadTimeline, loadInsights, loadSettings]);
 
   // Sync context with monitoring
   useEffect(() => {
@@ -276,12 +319,61 @@ export default function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      stopAudio();
+      await api.auth.logout();
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      setUser(null);
+      setActiveSession(null);
+      setDashboard(null);
+      setLocations([]);
+      setFocusMap([]);
+      setTimelineData(null);
+      setInsights(null);
+      setWeekly(null);
+      addToast('Signed out successfully.', 'info');
+    }
+  };
+
   const completeOnboarding = (activity: string) => {
     localStorage.setItem('quietmap.onboarded', 'true');
     localStorage.setItem('quietmap.default_activity', activity);
     setOnboarded(true);
     void loadDashboard();
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface-base">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-forest-600 flex items-center justify-center text-white shadow-md animate-pulse">
+            <Compass size={26} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-forest-900">QuietMap</p>
+            <p className="text-xs text-sage-500">Checking authentication...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        <AuthPage
+          onAuthSuccess={(authenticatedUser) => {
+            setUser(authenticatedUser);
+            addToast(`Welcome back, ${authenticatedUser.full_name || authenticatedUser.email}!`, 'success');
+          }}
+        />
+      </>
+    );
+  }
 
   if (!onboarded) {
     return (
@@ -305,6 +397,8 @@ export default function App() {
         activePage={activePage}
         monitoring={monitoring}
         onPageChange={setActivePage}
+        user={user}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 p-6 sm:p-10 max-h-screen overflow-y-auto">

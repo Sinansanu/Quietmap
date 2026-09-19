@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from .user import User
     from .location import Location
     from .noise_sample import NoiseSample
     from .interruption import Interruption
@@ -24,6 +25,12 @@ class FocusSession(Base):
         String(36),
         primary_key=True,
         default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True
     )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -69,6 +76,10 @@ class FocusSession(Base):
         nullable=False
     )
 
+    user: Mapped[Optional["User"]] = relationship(
+        "User",
+        back_populates="focus_sessions"
+    )
     location: Mapped[Optional["Location"]] = relationship(
         "Location",
         back_populates="focus_sessions"

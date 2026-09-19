@@ -1,11 +1,13 @@
 import React from 'react';
-import { BarChart3, Compass, Gauge, LineChart, Settings as SettingsIcon, ShieldCheck } from 'lucide-react';
-import type { Page } from '../../types';
+import { BarChart3, Compass, Gauge, LineChart, LogOut, Settings as SettingsIcon, ShieldCheck } from 'lucide-react';
+import type { Page, User } from '../../types';
 
 interface SidebarProps {
   activePage: Page;
   monitoring: boolean;
   onPageChange: (page: Page) => void;
+  user: User | null;
+  onLogout: () => void;
 }
 
 const navItems: Array<{ id: Page; label: string; icon: typeof Gauge }> = [
@@ -16,7 +18,13 @@ const navItems: Array<{ id: Page; label: string; icon: typeof Gauge }> = [
   { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ activePage, monitoring, onPageChange }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  activePage,
+  monitoring,
+  onPageChange,
+  user,
+  onLogout,
+}) => {
   return (
     <aside className="w-60 bg-sage-50 border-r border-sage-200 min-h-screen flex flex-col p-6 shrink-0">
       {/* Brand logo */}
@@ -52,8 +60,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, monitoring, onPage
         })}
       </nav>
 
-      {/* Footer status card */}
-      <div className="pt-6 border-t border-sage-200/80 flex flex-col gap-3.5">
+      {/* Footer status card & User info */}
+      <div className="pt-6 border-t border-sage-200/80 flex flex-col gap-3">
+        {user && (
+          <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-white border border-sage-200 text-xs shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-forest-100 text-forest-800 flex items-center justify-center shrink-0 font-medium text-xs">
+                {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 truncate">
+                <p className="font-semibold text-sage-800 truncate text-xs">
+                  {user.full_name || user.email.split('@')[0]}
+                </p>
+                <p className="text-[10px] text-sage-400 truncate">{user.email}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-1.5 text-sage-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors shrink-0"
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-2.5 p-3 rounded-lg bg-white border border-sage-200 text-xs text-sage-600 shadow-xs">
           <span
             className={`w-2.5 h-2.5 rounded-full shrink-0 transition-colors ${
