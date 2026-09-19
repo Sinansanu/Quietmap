@@ -146,6 +146,60 @@ npm run build
 
 ---
 
+## Deploying to Vercel via GitHub (Vercel Services Model)
+
+QuietMap is deployed as **one Vercel project** using the **Vercel Services** model:
+- **Single Public Domain**: Both frontend and backend share the same domain (e.g. `https://quietmap.vercel.app`).
+- **Unified Edge Routing**:
+  - `/api/*` routes directly to the **FastAPI backend** service (`entrypoint: app.main:app`).
+  - `/(.*)` routes directly to the **React/Vite frontend** service (SPA rewrite to `/index.html`).
+- **Database**: Hosted on **Supabase PostgreSQL** via Session Pooler (port 5432).
+
+---
+
+### Step 1: Push Repository to GitHub
+
+Ensure all files are committed and pushed to your GitHub repository:
+
+```bash
+git add .
+git commit -m "feat: configure QuietMap for Vercel Services deployment"
+git push origin main
+```
+
+---
+
+### Step 2: Import Project in Vercel
+
+1. Log into your [Vercel Dashboard](https://vercel.com) and click **Add New...** -> **Project**.
+2. Select your `QMap` GitHub repository.
+3. In **Project Settings**:
+   - **Project Name**: `quietmap` (or your preferred name)
+   - **Root Directory**: Leave as `./` (repository root)
+   - Vercel automatically detects the root [`vercel.json`](file:///c:/Users/sinan/OneDrive/Desktop/QMap/vercel.json) with `services`.
+4. Expand **Environment Variables** and add:
+   | Variable | Value | Description |
+   | :--- | :--- | :--- |
+   | `DATABASE_URL` | `postgresql+psycopg://postgres.[PROJECT-REF]:[PASSWORD]@[POOLER-HOST]:5432/postgres?sslmode=require` | Supabase Session Pooler connection string (Server-side only) |
+   | `ENVIRONMENT` | `production` | Production environment flag |
+5. Click **Deploy**.
+
+> [!NOTE]
+> - **Zero Frontend Exposure**: `DATABASE_URL` is a server-side environment variable and is never exposed to the client bundle.
+> - **No `VITE_API_URL` Required**: Because frontend and backend share the same public domain, production API calls naturally use the same-origin path `/api/v1/...`.
+
+---
+
+### Step 3: Verify Deployment
+
+Once the deployment finishes:
+- **Web App**: Visit `https://your-project.vercel.app/`
+- **SPA Direct Routes**: Visit `https://your-project.vercel.app/dashboard`, `/settings`, etc.
+- **API Health**: Visit `https://your-project.vercel.app/api/v1/health`
+- **Swagger Documentation**: Visit `https://your-project.vercel.app/docs`
+
+---
+
 ## Running Automated Tests
 
 ### Backend Test Suite (Pytest)

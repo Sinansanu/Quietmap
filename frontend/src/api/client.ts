@@ -16,7 +16,10 @@ import type {
   WeeklyData,
 } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '') + '/api/v1';
+const rawApiUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const API_BASE = rawApiUrl
+  ? (rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`)
+  : '/api/v1';
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
