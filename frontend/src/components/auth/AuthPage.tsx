@@ -32,6 +32,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
     }
 
     if (mode === 'register') {
+      const cleanName = fullName.trim();
+      if (!cleanName || cleanName.length < 2) {
+        setErrorMessage('Full name must be at least 2 characters long.');
+        return;
+      }
+      if (cleanName.length > 100) {
+        setErrorMessage('Full name cannot exceed 100 characters.');
+        return;
+      }
+
       if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
         setErrorMessage('Password must contain at least one letter and one number.');
         return;
@@ -47,7 +57,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
         const res = await api.auth.register({
           email: cleanEmail,
           password,
-          full_name: fullName.trim() || undefined,
+          full_name: fullName.trim(),
         });
         onAuthSuccess(res.user);
       }
@@ -146,12 +156,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
           {mode === 'register' && (
             <div className="flex flex-col gap-1">
               <label htmlFor="full-name-input" className="text-xs font-semibold text-forest-900">
-                Full Name (Optional)
+                Full Name
               </label>
               <div className="relative">
                 <input
                   id="full-name-input"
                   type="text"
+                  required
+                  minLength={2}
+                  maxLength={100}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="e.g. Alex Mercer"

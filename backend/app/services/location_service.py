@@ -26,7 +26,7 @@ class LocationService:
         clean_name = payload.name.strip()
         if not clean_name:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="A non-empty location name is required."
             )
         existing = self.repo.get_by_name(clean_name)
@@ -42,7 +42,7 @@ class LocationService:
         clean_name = payload.name.strip()
         if not clean_name:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="A non-empty location name is required."
             )
         existing = self.repo.get_by_name(clean_name)

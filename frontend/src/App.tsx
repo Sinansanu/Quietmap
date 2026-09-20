@@ -8,8 +8,10 @@ import { InsightsPage } from './pages/InsightsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AuthPage } from './components/auth/AuthPage';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
+import { ProfileModal } from './components/profile/ProfileModal';
 import { ToastContainer, type ToastMessage } from './components/ui/Toast';
 import { useAudioMonitor } from './hooks/useAudioMonitor';
+import { useTheme } from './hooks/useTheme';
 import { api, ApiError } from './api/client';
 import type {
   DashboardData,
@@ -31,6 +33,10 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem('quietmap.onboarded') === 'true');
   const [activePage, setActivePage] = useState<Page>('dashboard');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Dynamic Theme Management (light, dark, system)
+  useTheme(user?.theme_preference || 'system');
 
   // Domain Data States
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -104,6 +110,24 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+
+  // Automatic Timezone Synchronization (auto mode only, 0 redundant writes)
+  useEffect(() => {
+    if (!user) return;
+    if (user.timezone_mode !== 'auto') return;
+
+    const detected = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : null;
+    if (!detected || detected === user.timezone) return;
+
+    api.profile
+      .update({ timezone: detected })
+      .then((updatedUser) => {
+        setUser(updatedUser);
+      })
+      .catch((err) => {
+        console.warn('[QuietMap] Automatic timezone synchronization deferred:', err);
+      });
+  }, [user?.id, user?.timezone_mode, user?.timezone]);
 
   // Compute active session elapsed time
   const activeSeconds = useMemo(() => {
@@ -399,6 +423,7 @@ export default function App() {
         onPageChange={setActivePage}
         user={user}
         onLogout={handleLogout}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
       />
 
       <main className="flex-1 p-6 sm:p-10 max-h-screen overflow-y-auto">
@@ -456,9 +481,23 @@ export default function App() {
           <SettingsPage
             settings={settings}
             monitoring={monitoring}
+            user={user}
             onUpdateSettings={handleUpdateSettings}
             onToggleMonitoring={handleToggleMonitoring}
             onDeleteAllData={handleDeleteAllData}
+            onOpenProfile={() => setIsProfileModalOpen(true)}
+          />
+        )}
+
+        {user && (
+          <ProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            user={user}
+            onUserUpdated={(updated) => {
+              setUser(updated);
+              addToast('Profile preferences updated.', 'success');
+            }}
           />
         )}
       </main>

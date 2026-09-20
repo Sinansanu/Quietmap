@@ -18,7 +18,7 @@
 | Phase | Feature | Status | Backend Tests | Frontend Build | Deployment |
 |---|---|---|---|---|---|
 | 1 | Authentication | 🟩 | 30 passed | ✓ Built | Ready for Vercel |
-| 2 | User Profiles | ⬜ | — | — | — |
+| 2 | User Profiles | 🟩 | 40 passed | ✓ Built | Ready for Vercel |
 | 3 | Focus Sessions | ⬜ | — | — | — |
 | 4 | Pomodoro | ⬜ | — | — | — |
 | 5 | Goals | ⬜ | — | — | — |
@@ -321,7 +321,100 @@ Phase 1 implements complete, secure user authentication for QMap while maintaini
 ---
 
 # Phase 2 — User Profiles
-*(Pending implementation following Phase 1)*
+
+**Status:** Complete & Verified  
+**Implementation Date:** 2026-09-19  
+**Alembic Migration:** `0003_add_user_profile_fields` (`head`)  
+**Backend Test Suite:** 40 passed, 0 failed in 13.18s (`pytest`)  
+**Frontend Build:** Passed (`tsc && vite build`, zero errors)
+
+### Objective & Architecture
+Phase 2 builds user identity, localization, and presentation customizations directly on top of the Phase 1 multi-user authentication baseline. Every authenticated user has an isolated, editable profile with validated display name, timezone tracking, and theme preferences.
+
+### Database Architecture & Migrations
+- **Alembic Revision:** `0003_add_user_profile_fields` (revises `0002_add_user_authentication`).
+- **Enforced NOT NULL on `users.full_name`:** Prior to applying constraint, live database audit confirmed 0 records with `NULL full_name`. Altered column to `VARCHAR(128) NOT NULL`.
+- **Added Profile Columns to `users`:**
+  - `timezone`: `VARCHAR(64)`, nullable (e.g. `'America/New_York'`, `'UTC'`).
+  - `timezone_mode`: `VARCHAR(16)`, `NOT NULL`, server default `'auto'`.
+  - `theme_preference`: `VARCHAR(16)`, `NOT NULL`, server default `'system'`.
+  - `updated_at`: `TIMESTAMPTZ`, nullable, server default `NOW()`.
+- **Dormant Legacy Claim Audit:** Re-verified historical pre-auth table counts:
+  - `locations`: 0 null `user_id` (total 3)
+  - `focus_sessions`: 0 null `user_id` (total 8)
+  - `noise_samples`: 0 null `user_id` (total 123)
+  - `settings`: 0 null `user_id` (total 4)
+  - `users`: 0 null `full_name` (total 1)
+  The first-user claim logic remains intact as dormant historical compatibility logic.
+
+### Backend Implementation
+- **Data Models & Schemas:**
+  - `backend/app/models/user.py`: Added `timezone`, `timezone_mode`, `theme_preference`, `updated_at` with SQLAlchemy ORM mappings and `full_name` non-null requirement.
+  - `backend/app/schemas/profile.py`:
+    - `UserProfileResponse`: Returns user identity and profile preferences (`id`, `email`, `full_name`, `timezone`, `timezone_mode`, `theme_preference`, `created_at`, `updated_at`). Never exposes password hashes or tokens.
+    - `UserProfileUpdate`: Validates partial updates:
+      - `full_name`: Trimmed, strictly 2 to 100 characters, rejects whitespace-only or empty strings (HTTP 422).
+      - `timezone`: Validated using standard Python `zoneinfo.ZoneInfo`. Invalid or unrecognized timezones rejected with HTTP 422.
+      - `timezone_mode`: Enforced `('auto', 'manual')`.
+      - `theme_preference`: Enforced `('light', 'dark', 'system')`.
+  - `backend/app/schemas/auth.py`: Updated `UserRegister` to make `full_name` a required field (2-100 characters). Updated `UserResponse` with new profile fields.
+- **Service & Repository Layer:**
+  - `backend/app/repositories/user_repository.py`: Added `update_profile` method for atomic profile attribute updates.
+  - `backend/app/services/profile_service.py`: Implemented `ProfileService` with redundant-write prevention. If update payload matches existing user attributes, skips database write and preserves `updated_at`.
+  - `backend/app/api/dependencies.py`: Added `get_profile_service` dependency.
+- **API Endpoints:**
+  - `GET /api/v1/profile`: Returns authenticated user's profile. Protected by `get_current_user`.
+  - `PUT /api/v1/profile`: Updates profile fields with validation and redundant-write prevention. Read-only email cannot be altered.
+
+### Frontend Implementation
+- **Type Definitions & API Client:**
+  - `frontend/src/types/index.ts`: Updated `User` model with `timezone`, `timezone_mode`, `theme_preference`, `updated_at`, and added `UserProfileUpdate` interface.
+  - `frontend/src/api/client.ts`: Added `api.profile.get()` and `api.profile.update()`.
+- **Dynamic Theme Management:**
+  - `frontend/src/hooks/useTheme.ts`: Custom hook supporting `'light'`, `'dark'`, and `'system'`. Automatically tracks `window.matchMedia('(prefers-color-scheme: dark)')` during `'system'` mode and applies or removes the `.dark` class from `document.documentElement` dynamically without page reload.
+  - `frontend/tailwind.config.js`: Enabled class-based dark mode (`darkMode: 'class'`).
+- **Profile Modal & Settings UI:**
+  - `frontend/src/components/profile/ProfileModal.tsx`: Accessible dialog allowing users to view their read-only email, edit their full name (with validation), toggle between automatic and manual timezone configuration, choose from standard IANA timezones, and select theme preferences.
+  - `frontend/src/components/layout/Sidebar.tsx`: Interactive user card with initials and display name that triggers `ProfileModal`.
+  - `frontend/src/pages/SettingsPage.tsx`: Integrated dedicated "Profile & Preferences" card displaying current display name, read-only email, timezone status, and visual theme.
+- **Automatic Timezone Synchronization:**
+  - `frontend/src/App.tsx`: Auto-detects device timezone via `Intl.DateTimeFormat().resolvedOptions().timeZone`. When `timezone_mode === 'auto'` and detected timezone differs from stored profile timezone, automatically dispatches `api.profile.update({ timezone: detected })`. Zero redundant requests if timezone matches stored value. Does not overwrite manual user choices.
+
+### Verification Results
+- **Automated Backend Tests:** 40 passed, 0 failed in 13.18s (`pytest`):
+  - 16 authentication & multi-user isolation tests (including new required `full_name` registration validation).
+  - 9 dedicated profile tests in `tests/test_profile.py`:
+    - `test_get_profile_authenticated`: Confirms full profile attributes and absence of credentials.
+    - `test_get_profile_unauthorized`: HTTP 401 on missing credentials.
+    - `test_update_profile_full_name`: Validates 2-100 characters, trimming, and rejection of empty/whitespace/short/long inputs.
+    - `test_update_profile_timezone_iana_validation`: Validates IANA timezones and rejects fake zones (`Mars/Phobos`, `GMT+25`, etc.) with HTTP 422.
+    - `test_update_profile_timezone_mode`: Validates `'auto'` and `'manual'` modes, rejects invalid modes.
+    - `test_update_profile_theme_preference`: Validates `'light'`, `'dark'`, `'system'`, rejects non-standard values.
+    - `test_profile_redundant_write_prevention`: Ensures identical payloads do not update `updated_at`.
+    - `test_profile_email_immutable`: Ensures account email cannot be modified via profile endpoints.
+    - `test_profile_multi_user_isolation`: Confirms User A and User B cannot read or alter each other's profiles.
+  - 15 core domain regression tests (locations, sessions, noise, timeline, insights, weekly, seed, math).
+- **TypeScript Typecheck:** `npx tsc --noEmit` exited 0 with zero errors.
+- **Frontend Production Build:** `npm run build` completed successfully (1508 modules transformed, `dist/` created in 2.49s).
+- **Live Database Status:** Alembic migration head `0003_add_user_profile_fields` active on hosted Supabase PostgreSQL.
+
+### Pre-Phase 3 Closure & Readiness Audit
+**Audit Date:** 2026-09-19  
+- **Warning Investigation & Resolution:**
+  - Audited 35 warnings from initial Phase 2 test run.
+  - 33 warnings were `StarletteDeprecationWarning` caused by referencing deprecated `status.HTTP_422_UNPROCESSABLE_ENTITY` (RFC 9110 deprecated the name in favor of `HTTP_422_UNPROCESSABLE_CONTENT`).
+  - Safely updated `status.HTTP_422_UNPROCESSABLE_ENTITY` to `status.HTTP_422_UNPROCESSABLE_CONTENT` across application code and tests.
+  - Reduced warning count from 35 down to 2.
+  - The remaining 2 warnings are upstream third-party framework deprecations (`fastapi.testclient` importing `starlette.testclient` and `anyio.abc.BlockingPortal`), which do not affect application correctness or security.
+- **Final Pytest Suite:** 40 passed, 0 failed, 2 known framework warnings in 13.01s.
+- **Database NULL Counts:** Audited live database:
+  - `locations` NULL `user_id` = 0
+  - `focus_sessions` NULL `user_id` = 0
+  - `noise_samples` NULL `user_id` = 0
+  - `settings` NULL `user_id` = 0
+  - `users` NULL `full_name` = 0
+  - `users` count = 1
+- **Readiness:** All Phase 2 acceptance criteria verified; Phase 3 Focus Sessions is ready to begin.
 
 ---
 

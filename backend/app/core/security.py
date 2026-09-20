@@ -34,22 +34,22 @@ def validate_password_strength(password: str) -> None:
     """
     if len(password) < 8:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Password must be at least 8 characters long."
         )
     if len(password) > 128:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Password must not exceed 128 characters."
         )
     if not re.search(r"[A-Za-z]", password):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Password must contain at least one letter."
         )
     if not re.search(r"\d", password):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Password must contain at least one digit."
         )
 

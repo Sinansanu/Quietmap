@@ -8,6 +8,7 @@ interface SidebarProps {
   onPageChange: (page: Page) => void;
   user: User | null;
   onLogout: () => void;
+  onOpenProfile?: () => void;
 }
 
 const navItems: Array<{ id: Page; label: string; icon: typeof Gauge }> = [
@@ -24,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onPageChange,
   user,
   onLogout,
+  onOpenProfile,
 }) => {
   return (
     <aside className="w-60 bg-sage-50 border-r border-sage-200 min-h-screen flex flex-col p-6 shrink-0">
@@ -64,17 +66,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="pt-6 border-t border-sage-200/80 flex flex-col gap-3">
         {user && (
           <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-white border border-sage-200 text-xs shadow-xs">
-            <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              title="Edit Profile & Preferences"
+              className="flex items-center gap-2 min-w-0 text-left hover:opacity-80 transition-opacity flex-1"
+            >
               <div className="w-7 h-7 rounded-full bg-forest-100 text-forest-800 flex items-center justify-center shrink-0 font-medium text-xs">
                 {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 truncate">
-                <p className="font-semibold text-sage-800 truncate text-xs">
+                <p className="font-semibold text-sage-800 truncate text-xs hover:text-forest-800">
                   {user.full_name || user.email.split('@')[0]}
                 </p>
                 <p className="text-[10px] text-sage-400 truncate">{user.email}</p>
               </div>
-            </div>
+            </button>
             <button
               type="button"
               onClick={onLogout}

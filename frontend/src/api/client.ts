@@ -15,6 +15,7 @@ import type {
   TimelineRange,
   TimelineResponse,
   User,
+  UserProfileUpdate,
   WeeklyData,
 } from '../types';
 
@@ -68,7 +69,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   auth: {
-    register: (payload: { email: string; password: string; full_name?: string }) =>
+    register: (payload: { email: string; password: string; full_name: string }) =>
       request<AuthSuccessResponse>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
     login: (payload: { email: string; password: string }) =>
       request<AuthSuccessResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
@@ -76,6 +77,11 @@ export const api = {
       request<User>('/auth/me'),
     logout: () =>
       request<{ status: string; message: string }>('/auth/logout', { method: 'POST' }),
+  },
+  profile: {
+    get: () => request<User>('/profile'),
+    update: (payload: UserProfileUpdate) =>
+      request<User>('/profile', { method: 'PUT', body: JSON.stringify(payload) }),
   },
   locations: {
     list: () => request<Location[]>('/locations'),

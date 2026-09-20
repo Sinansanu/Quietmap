@@ -73,6 +73,9 @@
     - [The 7-Day Retrospective Chart](#the-7-day-retrospective-chart)
     - [Quickstart Demo Data Seeding](#quickstart-demo-data-seeding)
 12. [Settings & Preferences](#12-settings--preferences)
+    - [User Profile & Display Name](#user-profile--display-name)
+    - [Timezone Configuration & Automatic Sync](#timezone-configuration--automatic-sync)
+    - [Visual Theme Preferences (Light, Dark, System)](#visual-theme-preferences-light-dark-system)
     - [Live Monitoring Active Toggle](#live-monitoring-active-toggle)
     - [Sampling Interval (Telemetry Frequency)](#sampling-interval-telemetry-frequency)
     - [Interruption Rise Threshold](#interruption-rise-threshold)
@@ -168,7 +171,7 @@ QMap relies on the standardized **HTML5 Web Audio API** and **MediaStream Record
 1. Launch your web browser.
 2. Navigate to your deployed QMap URL (e.g., `https://your-qmap-app.vercel.app`) or local development address (`http://localhost:5173`).
 3. **Sign In or Create an Account**:
-   - If you do not have an account, click **Create an account**, enter your email address, optional full name, and create a secure password. Click **Create Account**.
+   - If you do not have an account, click **Create Account**, enter your full name (2–100 characters), email address, and create a secure password. Click **Create My Account**.
    - If you already have an account, enter your email and password and click **Sign In**.
 4. Once authenticated, QMap loads your private workspace data. If visiting for the first time, QMap presents the **Onboarding Walkthrough**.
 
@@ -259,8 +262,8 @@ The left sidebar remains visible across all screens:
 - **Focus Map:** Workspace library with historical scores, best times, and workspace management.
 - **Timeline:** Continuous, scrubbable decibel graph over 12h, 24h, and 7d horizons.
 - **Insights:** Algorithmic routine analysis, quietest window discovery, and 7-day retrospective.
-- **Settings:** Sampling rates, interruption threshold sensitivities, and database management.
-- **User Profile & Sign Out (Bottom):** Displays your user avatar badge, name/email, and a **Sign Out** button to securely end your authenticated session.
+- **Settings:** Sampling rates, interruption threshold sensitivities, profile settings, and database management.
+- **User Profile & Sign Out (Bottom):** Displays your user avatar with your initial, display name, and email. Clicking your user badge opens the **Profile & Preferences** modal to edit your name, customize your timezone, or change your theme. Click the sign-out icon to securely end your session.
 - **Live Status Indicator (Bottom):** Shows a green pulsing indicator with *"Monitoring ambient"* when the microphone analyzer is running, or a gray indicator with *"Monitoring paused"* when idle.
 
 ---
@@ -589,10 +592,15 @@ If you are testing QMap or want to see how the analytics look before recording s
 
 ## 12. Settings & Preferences
 
-The **Settings** page gives you full control over how QMap measures sound and handles data:
+The **Settings** page gives you full control over your personal profile identity, timezone synchronization, visual themes, telemetry sampling rates, and database management:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
+│ PROFILE & PREFERENCES                                 [ Edit Profile ] │
+│                                                                        │
+│ Display Name: Jane Doe            Account Email: jane@example.com (🔒) │
+│ Timezone: America/New_York (auto) Visual Theme: System                 │
+├────────────────────────────────────────────────────────────────────────┤
 │ AMBIENT MONITORING                                                     │
 │                                                                        │
 │ Live Monitoring Active                           [ Switch ON / OFF ]   │
@@ -607,6 +615,32 @@ The **Settings** page gives you full control over how QMap measures sound and ha
 │ Danger Zone:                                     [ Delete All Data ]   │
 └────────────────────────────────────────────────────────────────────────┘
 ```
+
+### User Profile & Display Name
+- **Display Name (Required):** Your visible name displayed throughout QMap (in the header greeting, sidebar, and workspace reports).
+  - Validation: Must be between 2 and 100 characters in length.
+  - Leading and trailing whitespace is automatically trimmed. Empty or whitespace-only names are prohibited.
+  - You can update your display name at any time by clicking **Edit Profile** in the Settings screen or clicking your user badge in the bottom-left sidebar.
+- **Account Email (Read-Only):** Your registered email address serves as your primary account identifier and authentication credential. For security and tenant integrity, your email address is read-only and cannot be altered via the profile dialog.
+
+### Timezone Configuration & Automatic Sync
+Accurate timestamps ensure your Focus Sessions, Timeline charts, and Daily Retrospectives align with your local working hours. QMap provides two timezone synchronization modes:
+1. **Automatic (Browser Detection — Recommended):**
+   - QMap detects your local device timezone using the browser's standard internationalization engine (`Intl.DateTimeFormat`).
+   - When you travel or change timezones, QMap automatically updates your profile to match your current local timezone.
+   - **Zero Redundant Writes:** If your device timezone already matches your saved profile timezone, QMap performs zero unnecessary network requests or database writes.
+2. **Manual Selection:**
+   - If you prefer to log sessions in a fixed timezone regardless of your physical location, switch the toggle to **Manual Selection**.
+   - Choose any standard IANA timezone identifier (e.g., `UTC`, `America/New_York`, `Europe/London`, `Asia/Tokyo`).
+   - While in Manual mode, QMap's automatic detection is suspended and will never overwrite your manually chosen timezone.
+
+### Visual Theme Preferences (Light, Dark, System)
+Customize QMap's visual presentation to suit your working environment and lighting conditions:
+- **Light:** Clean, crisp daylight palette built with soft forest green and warm sage accents.
+- **Dark:** Low-glare, contrast-optimized palette designed for nighttime deep focus sessions and low-light workspaces.
+- **System (Default):** Dynamically mirrors your operating system or browser light/dark mode preference (`prefers-color-scheme`). If your OS automatically switches between light and dark themes at sunrise/sunset, QMap updates immediately in real time without requiring a page reload.
+
+To change your visual theme, open **Edit Profile** and select **Light**, **Dark**, or **System**. Your choice is saved directly to your account profile and applies across all devices where you log in.
 
 ### Live Monitoring Active Toggle
 - Turns the browser microphone audio capture on or off.

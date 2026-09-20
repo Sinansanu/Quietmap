@@ -23,13 +23,32 @@ class UserRepository:
     def count(self) -> int:
         return self.db.scalar(select(func.count(User.id))) or 0
 
-    def create(self, email: str, hashed_password: str, full_name: Optional[str] = None) -> User:
+    def create(self, email: str, hashed_password: str, full_name: str) -> User:
         user = User(
             email=email.strip().lower(),
             hashed_password=hashed_password,
-            full_name=full_name.strip() if full_name else None
+            full_name=full_name.strip()
         )
         self.db.add(user)
+        self.db.flush()
+        return user
+
+    def update_profile(
+        self,
+        user: User,
+        full_name: Optional[str] = None,
+        timezone: Optional[str] = None,
+        timezone_mode: Optional[str] = None,
+        theme_preference: Optional[str] = None
+    ) -> User:
+        if full_name is not None:
+            user.full_name = full_name.strip()
+        if timezone is not None:
+            user.timezone = timezone.strip() if timezone else None
+        if timezone_mode is not None:
+            user.timezone_mode = timezone_mode.strip().lower()
+        if theme_preference is not None:
+            user.theme_preference = theme_preference.strip().lower()
         self.db.flush()
         return user
 

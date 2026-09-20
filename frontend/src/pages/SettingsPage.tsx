@@ -1,25 +1,29 @@
 import React, { useState } from 'react';
-import { Database, Mic, ShieldCheck, Trash2 } from 'lucide-react';
+import { Database, Globe, Lock, Mic, ShieldCheck, Trash2, User as UserIcon } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Toggle } from '../components/ui/Toggle';
 import { Modal } from '../components/ui/Modal';
-import type { Settings, SettingsUpdate } from '../types';
+import type { Settings, SettingsUpdate, User } from '../types';
 
 interface SettingsPageProps {
   settings: Settings;
   monitoring: boolean;
+  user: User;
   onUpdateSettings: (patch: SettingsUpdate) => Promise<void>;
   onToggleMonitoring: () => void;
   onDeleteAllData: () => Promise<void>;
+  onOpenProfile: () => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   settings,
   monitoring,
+  user,
   onUpdateSettings,
   onToggleMonitoring,
   onDeleteAllData,
+  onOpenProfile,
 }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -48,6 +52,54 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           Tune how QuietMap measures ambient sound and manages your telemetry.
         </p>
       </header>
+
+      {/* User Profile & Preferences Section */}
+      <Card className="flex flex-col gap-6">
+        <div className="flex items-center justify-between pb-4 border-b border-sage-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-forest-50 text-forest-700 flex items-center justify-center">
+              <UserIcon size={17} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-forest-950">Profile & Preferences</h2>
+              <p className="text-xs text-sage-500">Your display identity, timezone sync, and visual theme.</p>
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" onClick={onOpenProfile}>
+            Edit Profile
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-3.5 rounded-xl bg-sage-50 border border-sage-200">
+            <span className="text-[11px] font-semibold text-sage-400 uppercase tracking-wider block">Display Name</span>
+            <span className="text-sm font-bold text-forest-950 block mt-0.5 truncate">{user.full_name}</span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-sage-50 border border-sage-200">
+            <span className="text-[11px] font-semibold text-sage-400 uppercase tracking-wider block flex items-center gap-1">
+              Account Email <Lock size={10} />
+            </span>
+            <span className="text-sm font-semibold text-sage-700 block mt-0.5 truncate">{user.email}</span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-sage-50 border border-sage-200">
+            <span className="text-[11px] font-semibold text-sage-400 uppercase tracking-wider block flex items-center gap-1">
+              Timezone <Globe size={11} />
+            </span>
+            <span className="text-sm font-semibold text-forest-950 block mt-0.5 truncate">
+              {user.timezone || 'Auto'} ({user.timezone_mode})
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-sage-50 border border-sage-200">
+            <span className="text-[11px] font-semibold text-sage-400 uppercase tracking-wider block">Visual Theme</span>
+            <span className="text-sm font-semibold text-forest-950 block mt-0.5 capitalize">
+              {user.theme_preference || 'system'}
+            </span>
+          </div>
+        </div>
+      </Card>
 
       {/* Monitoring Section */}
       <Card className="flex flex-col gap-6">

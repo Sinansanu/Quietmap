@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from .endpoints import (
     auth,
+    profile,
     locations,
     sessions,
     noise,
@@ -17,6 +18,7 @@ from .endpoints import (
 api_v1_router = APIRouter(prefix="/api/v1")
 
 api_v1_router.include_router(auth.router)
+api_v1_router.include_router(profile.router)
 api_v1_router.include_router(locations.router)
 api_v1_router.include_router(sessions.router)
 api_v1_router.include_router(noise.router)

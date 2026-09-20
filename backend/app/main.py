@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from app.config import settings
 from app.db.session import engine, SessionLocal
 from app.db.base import Base
@@ -60,11 +61,11 @@ app.add_middleware(
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content=jsonable_encoder({
             "error": "Validation Error",
             "details": exc.errors()
-        }
+        })
     )
 
 

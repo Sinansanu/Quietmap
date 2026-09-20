@@ -54,11 +54,11 @@ def test_register_success(auth_client: TestClient, db_session: Session):
 def test_register_duplicate_email(auth_client: TestClient, db_session: Session):
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "duplicate@example.com", "password": "Password123!"}
+        json={"email": "duplicate@example.com", "password": "Password123!", "full_name": "Duplicate User"}
     )
     response = auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "duplicate@example.com", "password": "Password123!"}
+        json={"email": "duplicate@example.com", "password": "Password123!", "full_name": "Duplicate User"}
     )
     assert response.status_code == status.HTTP_409_CONFLICT
     assert "already exists" in response.json()["detail"]
@@ -68,22 +68,45 @@ def test_register_password_validation(auth_client: TestClient):
     # Too short (< 8 chars)
     res1 = auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "short@example.com", "password": "pass1"}
+        json={"email": "short@example.com", "password": "pass1", "full_name": "Valid Name"}
     )
-    assert res1.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert res1.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     # Missing digits
     res2 = auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "nonum@example.com", "password": "onlylettershere"}
+        json={"email": "nonum@example.com", "password": "onlylettershere", "full_name": "Valid Name"}
     )
-    assert res2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert res2.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_register_full_name_validation(auth_client: TestClient):
+    # Missing full_name
+    res1 = auth_client.post(
+        "/api/v1/auth/register",
+        json={"email": "noname@example.com", "password": "Password123!"}
+    )
+    assert res1.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    # Whitespace only full_name
+    res2 = auth_client.post(
+        "/api/v1/auth/register",
+        json={"email": "whitespacename@example.com", "password": "Password123!", "full_name": "   "}
+    )
+    assert res2.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    # Too short full_name (< 2 chars)
+    res3 = auth_client.post(
+        "/api/v1/auth/register",
+        json={"email": "shortname@example.com", "password": "Password123!", "full_name": "A"}
+    )
+    assert res3.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_login_success(auth_client: TestClient):
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "loginuser@example.com", "password": "Password123!"}
+        json={"email": "loginuser@example.com", "password": "Password123!", "full_name": "Login User"}
     )
     response = auth_client.post(
         "/api/v1/auth/login",
@@ -100,7 +123,7 @@ def test_login_success(auth_client: TestClient):
 def test_login_invalid_password(auth_client: TestClient):
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "wrongpass@example.com", "password": "Password123!"}
+        json={"email": "wrongpass@example.com", "password": "Password123!", "full_name": "Wrong Pass User"}
     )
     response = auth_client.post(
         "/api/v1/auth/login",
@@ -132,7 +155,7 @@ def test_get_me_with_cookie(auth_client: TestClient):
 def test_get_me_with_bearer_token(auth_client: TestClient):
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "bearertest@example.com", "password": "Password123!"}
+        json={"email": "bearertest@example.com", "password": "Password123!", "full_name": "Bearer Tester"}
     )
     # Call /auth/token endpoint
     token_res = auth_client.post(
@@ -163,6 +186,7 @@ def test_expired_token(auth_client: TestClient, db_session: Session):
         id="expired-user-id",
         email="expired@example.com",
         hashed_password=hash_password("Password123!"),
+        full_name="Expired User",
         is_active=True
     )
     db_session.add(user)
@@ -182,7 +206,7 @@ def test_expired_token(auth_client: TestClient, db_session: Session):
 def test_logout_clears_cookie(auth_client: TestClient):
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "logout@example.com", "password": "Password123!"}
+        json={"email": "logout@example.com", "password": "Password123!", "full_name": "Logout Tester"}
     )
     assert "access_token" in auth_client.cookies
 
@@ -207,7 +231,7 @@ def test_atomic_first_user_legacy_claim(auth_client: TestClient, db_session: Ses
     # First user registers
     reg_res = auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "user1@example.com", "password": "Password123!"}
+        json={"email": "user1@example.com", "password": "Password123!", "full_name": "User One"}
     )
     assert reg_res.status_code == status.HTTP_201_CREATED
     user1_id = reg_res.json()["user"]["id"]
@@ -221,7 +245,7 @@ def test_second_user_isolation(auth_client: TestClient, db_session: Session):
     # First user already claimed legacy data or created workspaces
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "first@example.com", "password": "Password123!"}
+        json={"email": "first@example.com", "password": "Password123!", "full_name": "First User"}
     )
     auth_client.post(
         "/api/v1/locations",
@@ -232,7 +256,7 @@ def test_second_user_isolation(auth_client: TestClient, db_session: Session):
     auth_client.cookies.clear()
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "second@example.com", "password": "Password123!"}
+        json={"email": "second@example.com", "password": "Password123!", "full_name": "Second User"}
     )
 
     # Second user checks locations: should NOT see First User's locations!
@@ -246,7 +270,7 @@ def test_cross_user_location_isolation(auth_client: TestClient, db_session: Sess
     # Register User A
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "usera@example.com", "password": "Password123!"}
+        json={"email": "usera@example.com", "password": "Password123!", "full_name": "User A"}
     )
     res_a = auth_client.post("/api/v1/locations", json={"name": "Confidential Project Room"})
     loc_a_id = res_a.json()["id"]
@@ -255,7 +279,7 @@ def test_cross_user_location_isolation(auth_client: TestClient, db_session: Sess
     auth_client.cookies.clear()
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "userb@example.com", "password": "Password123!"}
+        json={"email": "userb@example.com", "password": "Password123!", "full_name": "User B"}
     )
 
     # User B attempts to access User A's location by ID -> 404
@@ -271,7 +295,7 @@ def test_cross_user_session_and_noise_isolation(auth_client: TestClient, db_sess
     # User A creates location and starts session
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "usera2@example.com", "password": "Password123!"}
+        json={"email": "usera2@example.com", "password": "Password123!", "full_name": "User A2"}
     )
     loc_a = auth_client.post("/api/v1/locations", json={"name": "User A Office"}).json()
     sess_a = auth_client.post(
@@ -289,7 +313,7 @@ def test_cross_user_session_and_noise_isolation(auth_client: TestClient, db_sess
     auth_client.cookies.clear()
     auth_client.post(
         "/api/v1/auth/register",
-        json={"email": "userb2@example.com", "password": "Password123!"}
+        json={"email": "userb2@example.com", "password": "Password123!", "full_name": "User B2"}
     )
 
     # User B should have NO active session

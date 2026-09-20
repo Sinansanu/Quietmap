@@ -156,8 +156,19 @@ export interface WeeklyData {
 export interface User {
   id: string;
   email: string;
-  full_name?: string | null;
+  full_name: string;
+  timezone?: string | null;
+  timezone_mode: 'auto' | 'manual';
+  theme_preference: 'light' | 'dark' | 'system';
   created_at: string;
+  updated_at?: string | null;
+}
+
+export interface UserProfileUpdate {
+  full_name?: string;
+  timezone?: string | null;
+  timezone_mode?: 'auto' | 'manual';
+  theme_preference?: 'light' | 'dark' | 'system';
 }
 
 export interface AuthSuccessResponse {

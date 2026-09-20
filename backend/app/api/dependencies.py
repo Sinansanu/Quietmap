@@ -10,6 +10,7 @@ from app.services.focus_session_service import FocusSessionService
 from app.services.noise_monitoring_service import NoiseMonitoringService
 from app.services.analytics_service import AnalyticsService
 from app.services.settings_service import SettingsService
+from app.services.profile_service import ProfileService
 from app.core.security import decode_access_token
 
 
@@ -85,3 +86,10 @@ def get_settings_service(
     current_user: User = Depends(get_current_user)
 ) -> SettingsService:
     return SettingsService(db, user_id=current_user.id)
+
+
+def get_profile_service(
+    db: Session = Depends(get_db)
+) -> ProfileService:
+    return ProfileService(db)
+

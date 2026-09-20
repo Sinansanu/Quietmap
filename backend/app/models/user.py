@@ -29,9 +29,25 @@ class User(Base):
         String(255),
         nullable=False
     )
-    full_name: Mapped[Optional[str]] = mapped_column(
+    full_name: Mapped[str] = mapped_column(
         String(128),
+        nullable=False
+    )
+    timezone: Mapped[Optional[str]] = mapped_column(
+        String(64),
         nullable=True
+    )
+    timezone_mode: Mapped[str] = mapped_column(
+        String(16),
+        default="auto",
+        server_default="auto",
+        nullable=False
+    )
+    theme_preference: Mapped[str] = mapped_column(
+        String(16),
+        default="system",
+        server_default="system",
+        nullable=False
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -42,6 +58,12 @@ class User(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=True
     )
 
     locations: Mapped[List["Location"]] = relationship(

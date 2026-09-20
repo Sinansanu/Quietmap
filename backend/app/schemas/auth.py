@@ -9,7 +9,7 @@ EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 class UserRegister(BaseModel):
     email: str = Field(..., max_length=255, description="User email address")
     password: str = Field(..., min_length=8, max_length=128, description="User password (min 8 chars, letters & digits)")
-    full_name: Optional[str] = Field(None, max_length=128, description="Optional display name")
+    full_name: str = Field(..., min_length=2, max_length=100, description="User display name")
 
     @field_validator("email")
     @classmethod
@@ -17,6 +17,14 @@ class UserRegister(BaseModel):
         clean = v.strip().lower()
         if not EMAIL_REGEX.match(clean):
             raise ValueError("Invalid email address format.")
+        return clean
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, v: str) -> str:
+        clean = v.strip()
+        if len(clean) < 2 or len(clean) > 100:
+            raise ValueError("Full name must be between 2 and 100 characters.")
         return clean
 
 
@@ -38,8 +46,12 @@ class UserResponse(BaseModel):
 
     id: str
     email: str
-    full_name: Optional[str] = None
+    full_name: str
+    timezone: Optional[str] = None
+    timezone_mode: str = "auto"
+    theme_preference: str = "system"
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
 
 class AuthSuccessResponse(BaseModel):
